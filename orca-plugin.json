@@ -1,0 +1,41 @@
+{
+  "manifestVersion": 2,
+  "id": "live-agents",
+  "name": "Live Agents",
+  "version": "0.1.0",
+  "description": "Live agent status across all Orca workspaces in the right sidebar.",
+  "engines": {
+    "orca": ">=1.4.260"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "live-agents",
+        "title": "Live Agents",
+        "icon": "activity",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "workspace:write"
+    }
+  ],
+  "repository": "https://github.com/vaclavgreif/orca-live-agents",
+  "homepage": "https://github.com/vaclavgreif/orca-live-agents",
+  "author": {
+    "name": "Václav Greif",
+    "url": "https://github.com/vaclavgreif"
+  }
+}

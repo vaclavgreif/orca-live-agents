@@ -1,0 +1,88 @@
+import {
+  atom, Badge, Callout, EmptyState, Heading, IconButton, List, ListItem,
+  on, plugin, read, RelativeTime, Row, set, Spinner, Stack, Switch, Text,
+  type PanelContext
+} from 'orca'
+import type { AgentRow, Snapshot } from './protocol'
+
+const snapshot = atom<Snapshot | null>(null)
+const error = atom('')
+const loading = atom(false)
+const showDone = atom('show-done', false, { persist: 'plugin' })
+let refreshPanel = async (): Promise<void> => {}
+
+export function setup(ctx: PanelContext): () => void {
+  let pending: Promise<void> | undefined
+  let again = false
+  const refresh = (): Promise<void> => {
+    if (ctx.signal.aborted || !read(ctx.visible)) return Promise.resolve()
+    if (pending) { again = true; return pending }
+    set(loading, true)
+    pending = (async () => {
+      do {
+        again = false
+        try {
+          const data = await plugin.request('agents.snapshot', undefined, { signal: ctx.signal })
+          if (!ctx.signal.aborted) { set(snapshot, data); set(error, '') }
+        } catch (cause) {
+          if (!ctx.signal.aborted) set(error, `Could not refresh agents. ${cause instanceof Error ? cause.message : 'Try again.'}`)
+        }
+      } while (again && !ctx.signal.aborted && read(ctx.visible))
+    })().finally(() => { pending = undefined; if (!ctx.signal.aborted) set(loading, false) })
+    return pending
+  }
+  refreshPanel = refresh
+  for (const event of ['agent.status.changed', 'workspace.created', 'workspace.removed', 'workspace.changed'] as const) {
+    ctx.subscriptions.push(on(event, () => { void refresh() }))
+  }
+  // Events keep status live; reconciliation also removes sessions closed without an event.
+  const timer = setInterval(() => { void refresh() }, 15000)
+  void refresh()
+  return () => { clearInterval(timer); refreshPanel = async () => {} }
+}
+
+async function openAgent(key: string): Promise<void> {
+  try { await plugin.request('agents.open', { key }); set(error, '') }
+  catch (cause) { set(error, cause instanceof Error ? cause.message : 'Could not open the agent workspace.') }
+}
+
+function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'neutral') {
+  if (!rows.length) return null
+  return <Stack gap="xs">
+    <Row justify="between"><Text weight="semibold" size="sm">{title}</Text><Badge tone={tone}>{rows.length}</Badge></Row>
+    <List label={title}>
+      {rows.map((row) => <ListItem key={row.key} title={row.title} description={row.workspace} onPress={() => openAgent(row.key)}>
+        <Row justify="between" gap="sm" wrap>
+          <Text muted size="xs">{row.agent}</Text>
+          <Text muted size="xs">{row.state === 'blocked' ? 'Blocked' : row.state === 'waiting' ? 'Waiting' : row.state === 'working' ? 'Working' : 'Done'}{row.since > 0 ? ' · ' : ''}{row.since > 0 ? <RelativeTime at={row.since} /> : null}</Text>
+        </Row>
+      </ListItem>)}
+    </List>
+  </Stack>
+}
+
+export default function Panel() {
+  const data = read(snapshot)
+  const failure = read(error)
+  const busy = read(loading)
+  const doneVisible = read(showDone)
+  const agents = data?.agents ?? []
+  const needsYou = agents.filter((a) => a.state === 'waiting' || a.state === 'blocked')
+  const working = agents.filter((a) => a.state === 'working')
+  const done = agents.filter((a) => a.state === 'done')
+  return <Stack gap="md">
+    <Row justify="between">
+      <Heading level={2}>Live Agents</Heading>
+      <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
+    </Row>
+    <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
+    <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
+    {failure ? <Callout tone="danger" title="Refresh failed"><Text>{failure}</Text>{data ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
+    {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
+    {!data && busy ? <Spinner label="Loading agents" /> : null}
+    {group('Needs you', needsYou, 'warning')}
+    {group('Working', working, 'accent')}
+    {doneVisible ? group('Done', done, 'neutral') : null}
+    {data && !needsYou.length && !working.length && (!doneVisible || !done.length) ? <EmptyState icon="activity" title="No active agents" description={done.length ? 'Enable Show done to see completed agents.' : 'Agents appear here when they report a status in Orca.'} /> : null}
+  </Stack>
+}
