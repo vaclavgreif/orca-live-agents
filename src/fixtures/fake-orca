@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2)
+if (process.env.LIVE_AGENTS_TEST_CLI_MODE === 'offline') process.exit(1)
+if (args.join(' ') === 'terminal switch --environment test-remote --terminal orca_session_id:remote-session --json') {
+  process.stdout.write(JSON.stringify({ok:true,result:{switched:true}}))
+  process.exit(0)
+}
+if (args.join(' ') !== 'agent list --environment test-remote --json') {
+  process.stderr.write('Unexpected fixture arguments')
+  process.exit(1)
+}
+process.stdout.write(JSON.stringify({ok: true, result: {agents: [{
+  orcaSessionId: 'remote-session', kind: 'chat', agent: 'codex', state: 'working',
+  worktreeId: 'repo::/remote/shop', workspace: 'feature/cart', repo: 'Example',
+  hostId: 'local', lastAssistantMessage: 'PRIVATE_PREVIEW', title: 'Implement checkout', updatedAt: 100
+}], truncated: false, hostScope: {hostIds: ['local'], omittedHostIds: []}}}))

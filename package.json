@@ -1,0 +1,16 @@
+{
+  "name": "orca-live-agents",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Live agents across local and paired Orca hosts.",
+  "type": "module",
+  "scripts": {
+    "test": "orca plugin test . --json",
+    "check": "orca plugin check . --json",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

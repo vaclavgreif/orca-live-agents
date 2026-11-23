@@ -38,3 +38,53 @@ test('reports incomplete workspace data and falls back to workspace navigation',
     assert.deepEqual(host.callsOf('workspace.open')[0], { workspaceId: 'alpha' })
   } finally { await worker.deactivate() }
 })
+
+test('includes agents on a paired runtime when desktop agents.list is empty', async () => {
+  const { resolve } = await import('node:path')
+  const previous = process.env.ORCA_CLI_COMMAND
+  process.env.ORCA_CLI_COMMAND = resolve('src/fixtures/fake-orca')
+  const host = mockHost({ results: {
+    'workspace.list': { workspaces: [{ id: 'remote-w1', kind: 'worktree', name: 'feature/cart', project: 'Example', path: '/remote/shop', branch: 'feature/cart', hostId: 'runtime:test-remote' }], truncated: false },
+    'agents.list': { agents: [] }
+  } })
+  const worker = await mountWorker(main, { host })
+  try {
+    const data = await worker.request('agents.snapshot')
+    assert.equal(data.agents.length, 1)
+    assert.equal(data.agents[0].title, 'Implement checkout')
+    assert.equal(data.agents[0].state, 'working')
+    assert.equal(data.agents[0].workspaceId, 'remote-w1')
+    assert.deepEqual(data.warnings, [])
+    assert.equal(JSON.stringify(data).includes('PRIVATE_PREVIEW'), false)
+    assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
+    assert.equal(host.callsOf('workspace.open').length, 0)
+  } finally {
+    await worker.deactivate()
+    if (previous === undefined) delete process.env.ORCA_CLI_COMMAND
+    else process.env.ORCA_CLI_COMMAND = previous
+  }
+})
+
+test('remote connection failure preserves local agents and reports the coverage gap', async () => {
+  const { resolve } = await import('node:path')
+  const previous = process.env.ORCA_CLI_COMMAND
+  process.env.ORCA_CLI_COMMAND = resolve('src/fixtures/fake-orca')
+  process.env.LIVE_AGENTS_TEST_CLI_MODE = 'offline'
+  const host = mockHost({ results: {
+    'workspace.list': { workspaces: [workspaces[0], { id: 'remote-w1', kind: 'folder', name: 'remote', path: '/remote/shop', branch: null, hostId: 'runtime:test-remote' }], truncated: false },
+    'agents.list': { agents: [agent] }
+  } })
+  const worker = await mountWorker(main, { host })
+  try {
+    const data = await worker.request('agents.snapshot')
+    assert.equal(data.agents.length, 1)
+    assert.equal(data.agents[0].workspaceId, 'alpha')
+    assert.ok(data.warnings[0].includes('runtime:test-remote'))
+    assert.equal(host.callsOf('agents.list').length, 1)
+  } finally {
+    await worker.deactivate()
+    delete process.env.LIVE_AGENTS_TEST_CLI_MODE
+    if (previous === undefined) delete process.env.ORCA_CLI_COMMAND
+    else process.env.ORCA_CLI_COMMAND = previous
+  }
+})
