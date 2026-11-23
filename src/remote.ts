@@ -32,7 +32,7 @@ export async function runCli(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
     // Argument arrays only: no shell and no commands supplied by an agent listing.
     execFile(cliBinary(), args, { env, timeout: 12000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
-      if (error) { reject(new Error('Orca CLI could not reach the paired host.')); return }
+      if (error) { reject(new Error(`Orca CLI failed (${error.killed ? 'timeout' : error.code || 'unknown error'}).`)); return }
       try {
         const response = JSON.parse(stdout)
         if (response?.ok !== true) throw new Error('Orca CLI request failed.')
@@ -66,4 +66,13 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
 
 export async function focusRemoteAgent(environment: string, sessionId: string): Promise<void> {
   await runCli(['terminal', 'switch', '--environment', environment, '--terminal', `orca_session_id:${sessionId}`, '--json'])
+}
+
+export async function listPairedEnvironments(): Promise<{ id: string; name: string }[]> {
+  const result = await runCli(['environment', 'list', '--json']) as { environments?: unknown }
+  if (!Array.isArray(result?.environments)) throw new Error('Orca CLI returned no paired-host list.')
+  return result.environments.flatMap((item) => {
+    if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !item.id || item.source === 'ephemeral-vm') return []
+    return [{ id: item.id, name: typeof item.name === 'string' ? item.name : item.id }]
+  })
 }

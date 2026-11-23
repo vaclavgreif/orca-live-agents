@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 const args = process.argv.slice(2)
+if (args.join(' ') === 'environment list --json') {
+  process.stdout.write(JSON.stringify({ok:true,result:{environments:process.env.LIVE_AGENTS_TEST_CLI_MODE === 'paired' ? [{id:'test-remote',name:'Test server'}] : []}}))
+  process.exit(0)
+}
 if (process.env.LIVE_AGENTS_TEST_CLI_MODE === 'offline') process.exit(1)
 if (args.join(' ') === 'terminal switch --environment test-remote --terminal orca_session_id:remote-session --json') {
   process.stdout.write(JSON.stringify({ok:true,result:{switched:true}}))

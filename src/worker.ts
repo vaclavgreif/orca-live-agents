@@ -1,6 +1,6 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { AgentRow, Snapshot } from './protocol'
-import { listRemoteAgents, focusRemoteAgent } from './remote'
+import { listRemoteAgents, focusRemoteAgent, listPairedEnvironments } from './remote'
 
 type NavigableAgent = AgentRow & { remoteEnvironment?: string; remoteSessionId?: string | null }
 
@@ -9,6 +9,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('agents.snapshot', async (): Promise<Snapshot> => {
     const { workspaces, truncated } = await orca.host.call('workspace.list')
     const agents: NavigableAgent[] = []
+    const diagnostics = [`Live Agents 0.1.2`, `Desktop workspace API: ${workspaces.length} workspaces.`]
     const warnings: string[] = truncated ? ['Orca returned a partial workspace list.'] : []
     // Bound concurrency so a large workspace collection cannot flood the host.
     const localWorkspaces = workspaces.filter((workspace) => !workspace.hostId?.startsWith('runtime:'))
@@ -35,16 +36,35 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
     // The desktop status API is host-scoped. Query each paired runtime once through
     // Orca's supported CLI, using its existing pairing (never copying credentials).
-    const hosts = [...new Set(workspaces.map((workspace) => workspace.hostId).filter((host): host is string => !!host?.startsWith('runtime:')))]
+    const discovered = new Map<string, string>()
+    for (const workspace of workspaces) {
+      if (workspace.hostId?.startsWith('runtime:')) {
+        try {
+          const id = decodeURIComponent(workspace.hostId.slice('runtime:'.length))
+          if (id) discovered.set(id, id)
+        } catch { warnings.push('A workspace has an invalid remote host identifier.') }
+      }
+    }
+    // Workspace enumeration may omit remote hosts entirely, even while their chats
+    // are open in the desktop. Pairing discovery must not depend on that enumeration.
+    try {
+      const paired = await listPairedEnvironments()
+      diagnostics.push(`Desktop pairing store: ${paired.length} saved hosts.`)
+      for (const environment of paired) discovered.set(environment.id, environment.name)
+    } catch (error) {
+      warnings.push(`Could not discover paired servers. ${error instanceof Error ? error.message : 'Check the desktop Orca CLI.'}`)
+      diagnostics.push('Desktop pairing discovery failed.')
+    }
+    const hosts = [...discovered.keys()]
     for (let offset = 0; offset < hosts.length; offset += 3) {
       await Promise.all(hosts.slice(offset, offset + 3).map(async (host) => {
         try {
-          const environment = decodeURIComponent(host.slice('runtime:'.length))
-          if (!environment) throw new Error('Empty remote environment.')
+          const environment = host
           const result = await listRemoteAgents(environment)
+          diagnostics.push(`${discovered.get(host)}: ${result.agents.length} agents returned.`)
           if (result.truncated) warnings.push(`Orca returned a partial agent list for ${environment}.`)
           for (const [index, agent] of result.agents.entries()) {
-            const matches = workspaces.filter((workspace) => workspace.hostId === host && (
+            const matches = workspaces.filter((workspace) => workspace.hostId === `runtime:${encodeURIComponent(host)}` && (
               workspace.id === agent.worktreeId || agent.worktreeId.endsWith(`::${workspace.path}`)
             ))
             const workspace = matches.length === 1 ? matches[0] : undefined
@@ -61,14 +81,17 @@ export default function activate(orca: OrcaWorkerApi): void {
               remoteSessionId: agent.orcaSessionId
             })
           }
-        } catch {
-          warnings.push(`Could not read agents on ${host}. Check that this host is connected and the Orca CLI is installed on your desktop.`)
+        } catch (error) {
+          const label = discovered.get(host) || host
+          warnings.push(`Could not read agents on ${label}. ${error instanceof Error ? error.message : 'Check the host connection.'}`)
+          diagnostics.push(`${label}: query failed.`)
         }
       }))
     }
     agents.sort((a, b) => a.workspace.localeCompare(b.workspace) || a.title.localeCompare(b.title))
     known = new Map(agents.map((agent) => [agent.key, agent]))
-    return { agents, warnings }
+    diagnostics.push(`Total: ${agents.length} agents; ${hosts.length} remote hosts queried.`)
+    return { agents, warnings, diagnostics }
   })
   orca.panels.handle('agents.open', async ({ key }) => {
     const row = known.get(key)

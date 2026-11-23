@@ -7,8 +7,9 @@ An always-visible right-sidebar panel listing agents across Orca workspaces. Kee
 - Clicking a terminal agent focuses its pane. Native chats open their workspace.
 - Uses Orca's native components, keyboard controls and current theme.
 - Reports failed refreshes and partial results rather than silently hiding them.
+- Shows the installed version and expandable Connection details for troubleshooting remote discovery.
 
-Requires Orca 1.4.260 or newer. Remote hosts must already be paired in the desktop app. The worker invokes Orca's bundled CLI once per remote host on each refresh, using the desktop's existing pairing. No credentials need to be entered into the plugin. Local native chat titles may be unavailable; those rows use the agent and workspace name.
+Requires Orca 1.4.260 or newer. Remote hosts must already be paired in the desktop app. The worker discovers servers from the desktop's saved pairings as well as its workspace list, then invokes Orca's bundled CLI once per remote host on each refresh, using the desktop's existing pairing. No credentials need to be entered into the plugin. Local native chat titles may be unavailable; those rows use the agent and workspace name.
 
 ## Install on the computer running the Orca desktop app
 

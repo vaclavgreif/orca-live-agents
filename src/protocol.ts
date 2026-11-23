@@ -8,7 +8,7 @@ export type AgentRow = {
   since: number
   terminalId: string | null
 }
-export type Snapshot = { agents: AgentRow[]; warnings: string[] }
+export type Snapshot = { agents: AgentRow[]; warnings: string[]; diagnostics?: string[] }
 declare module 'orca' {
   interface PluginRequests {
     'agents.snapshot': { output: Snapshot }

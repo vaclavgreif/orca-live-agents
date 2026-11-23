@@ -1,5 +1,5 @@
 import {
-  atom, Badge, Callout, EmptyState, Heading, IconButton, List, ListItem,
+  atom, Badge, Callout, Collapsible, EmptyState, Heading, IconButton, List, ListItem,
   on, plugin, read, RelativeTime, Row, set, Spinner, Stack, Switch, Text,
   type PanelContext
 } from 'orca'
@@ -76,6 +76,7 @@ export default function Panel() {
       <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
     </Row>
     <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
+    <Text muted size="xs">Version 0.1.2</Text>
     <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
     {failure ? <Callout tone="danger" title="Refresh failed"><Text>{failure}</Text>{data ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
@@ -84,5 +85,6 @@ export default function Panel() {
     {group('Working', working, 'accent')}
     {doneVisible ? group('Done', done, 'neutral') : null}
     {data && !needsYou.length && !working.length && (!doneVisible || !done.length) ? <EmptyState icon="activity" title="No active agents" description={done.length ? 'Enable Show done to see completed agents.' : 'Agents appear here when they report a status in Orca.'} /> : null}
+    {data?.diagnostics ? <Collapsible title="Connection details"><Stack gap="xs">{data.diagnostics.map((line, index) => <Text key={String(index)} size="xs" muted>{line}</Text>)}</Stack></Collapsible> : null}
   </Stack>
 }

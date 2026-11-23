@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "live-agents",
   "name": "Live Agents",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Live agent status across all Orca workspaces in the right sidebar.",
   "engines": {
     "orca": ">=1.4.260"

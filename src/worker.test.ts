@@ -1,5 +1,17 @@
-import { assert, hostError, mockHost, mountWorker, test } from 'orca/testing'
+import { beforeEach, afterEach, assert, hostError, mockHost, mountWorker, test } from 'orca/testing'
 import * as main from './worker'
+
+let originalCli: string | undefined
+beforeEach(async () => {
+  const { resolve } = await import('node:path')
+  originalCli = process.env.ORCA_CLI_COMMAND
+  process.env.ORCA_CLI_COMMAND = resolve('src/fixtures/fake-orca')
+})
+afterEach(() => {
+  if (originalCli === undefined) delete process.env.ORCA_CLI_COMMAND
+  else process.env.ORCA_CLI_COMMAND = originalCli
+  delete process.env.LIVE_AGENTS_TEST_CLI_MODE
+})
 
 const workspaces = ['alpha', 'beta'].map((id) => ({ id, name: id, kind: 'folder', path: '/tmp/' + id, branch: null, hostId: 'local' }))
 const agent = { terminalId: 't1', sessionId: 's1', title: 'Build theme', agent: 'codex', state: 'working', stateStartedAt: 1 }
@@ -79,7 +91,7 @@ test('remote connection failure preserves local agents and reports the coverage 
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
     assert.equal(data.agents[0].workspaceId, 'alpha')
-    assert.ok(data.warnings[0].includes('runtime:test-remote'))
+    assert.ok(data.warnings[0].includes('test-remote'))
     assert.equal(host.callsOf('agents.list').length, 1)
   } finally {
     await worker.deactivate()
@@ -87,4 +99,19 @@ test('remote connection failure preserves local agents and reports the coverage 
     if (previous === undefined) delete process.env.ORCA_CLI_COMMAND
     else process.env.ORCA_CLI_COMMAND = previous
   }
+})
+
+test('discovers paired hosts even when desktop workspace.list has no remote workspaces', async () => {
+  process.env.LIVE_AGENTS_TEST_CLI_MODE = 'paired'
+  const host = mockHost({ results: {
+    'workspace.list': { workspaces: [], truncated: false },
+    'agents.list': { agents: [] }
+  } })
+  const worker = await mountWorker(main, { host })
+  try {
+    const data = await worker.request('agents.snapshot')
+    assert.equal(data.agents.length, 1)
+    assert.equal(data.agents[0].title, 'Implement checkout')
+    assert.deepEqual(data.warnings, [])
+  } finally { await worker.deactivate() }
 })
