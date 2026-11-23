@@ -1,6 +1,6 @@
 import {
-  atom, Badge, Box, Callout, Collapsible, EmptyState, Heading, IconButton, Image, List, ListItem,
-  on, plugin, read, RelativeTime, Row, set, Spinner, Stack, Switch, Text,
+  atom, Badge, Box, Button, Callout, Collapsible, EmptyState, IconButton, Image, List, ListItem,
+  on, plugin, read, Row, set, Spinner, Stack, Text,
   type PanelContext
 } from 'orca'
 import type { AgentRow, Snapshot } from './protocol'
@@ -50,22 +50,18 @@ async function openAgent(key: string): Promise<void> {
 function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'neutral') {
   if (!rows.length) return null
   return <Stack gap="xs">
-    <Row justify="between"><Text weight="semibold" size="sm">{title}</Text><Badge tone={tone}>{rows.length}</Badge></Row>
+    <Row justify="between"><Text weight="semibold" size="xs">{title}</Text><Badge tone={tone}>{rows.length}</Badge></Row>
     <List label={title}>
       {rows.map((row) => <ListItem key={row.key} onPress={() => openAgent(row.key)}>
         <Stack gap="xs">
-          <Row justify="between" gap="sm">
-            <Row gap="sm" align="center">
-              <Box width={8} height={8} shrink={false}><Image src={`assets/dot-${row.state}.png`} alt="" size="full" /></Box>
-              <Text size="md" weight="semibold">{row.project || row.workspace}</Text>
+          <Row justify="between" gap="xs" align="center">
+            <Row gap="xs" align="center">
+              <Box width={6} height={6} shrink={false}><Image src={`assets/dot-${row.state}.png`} alt={row.state === 'blocked' ? 'Blocked' : row.state === 'waiting' ? 'Waiting' : row.state === 'working' ? 'Working' : 'Done'} size="full" /></Box>
+              <Text size="xs" weight="semibold" truncate>{row.project || row.workspace}</Text>
             </Row>
-            {row.unread ? <Box width={8} height={8} shrink={false}><Image src="assets/dot-unread.png" alt="Unread updates" size="full" /></Box> : null}
+            {row.unread ? <Box width={6} height={6} shrink={false}><Image src="assets/dot-unread.png" alt="Unread updates" size="full" /></Box> : null}
           </Row>
-          <Text size="sm" muted>{row.title}</Text>
-          <Row justify="between" gap="sm" wrap>
-            {row.branch && row.branch !== row.project ? <Text muted size="xs">{row.branch}</Text> : null}
-            <Text muted size="xs">{row.state === 'blocked' ? 'Blocked' : row.state === 'waiting' ? 'Waiting' : row.state === 'working' ? 'Working' : 'Done'}{row.since > 0 ? ' · ' : ''}{row.since > 0 ? <RelativeTime at={row.since} /> : null}</Text>
-          </Row>
+          <Text size="xs" muted truncate>{row.title}</Text>
         </Stack>
       </ListItem>)}
     </List>
@@ -83,14 +79,14 @@ export default function Panel() {
   const working = agents.filter((a) => a.state === 'working')
   const done = agents.filter((a) => a.state === 'done')
   const visibleDone = doneVisible ? done : done.filter((a) => a.unread === true)
-  return <Stack gap="md">
+  return <Stack gap="sm">
     <Row justify="between">
-      <Heading level={2}>Live Agents</Heading>
-      <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
+      <Text size="sm" weight="semibold">Live Agents</Text>
+      <Row gap="xs" align="center">
+        <Button size="xs" variant="ghost" tone={doneVisible ? 'accent' : 'neutral'} icon={doneVisible ? 'check' : 'filter'} tooltip={doneVisible ? 'Hide completed agents' : 'Show completed agents'} onPress={() => set(showDone, !doneVisible)}>{`Show done (${done.length})`}</Button>
+        <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
+      </Row>
     </Row>
-    <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
-    <Text muted size="xs">Version 0.1.6</Text>
-    <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
     {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
     {!data && busy ? <Spinner label="Loading agents" /> : null}

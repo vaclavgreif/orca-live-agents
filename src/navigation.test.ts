@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { revealChatWithConnections, type RuntimeConnection } from './navigation'
+import { nativeTabReader, revealChatWithConnections, type RuntimeConnection, type RemoteSender } from './navigation'
 
 const location = { environment: 'paired server', worktreeId: 'server-repo::/remote/shop', sessionId: 'chat-2' }
 function connections(navigated = true, tabs = [
@@ -37,6 +37,25 @@ test('does not claim success when the desktop refuses navigation', async () => {
 
 test('does not open another chat when the selected chat tab has closed', async () => {
   const c = connections(true, [{ id: 'actual-tab-1', type: 'agent-session', sessionId: 'chat-1', isActive: true }])
-  await assert.rejects(() => revealChatWithConnections(c.remote, c.desktop, location), /no longer open/)
+  await assert.rejects(() => revealChatWithConnections(c.remote, c.desktop, location), /Could not locate/)
   assert.equal(c.calls.length, 1)
+})
+
+
+test('paired discovery advertises native chat support instead of receiving a filtered CLI snapshot', async () => {
+  const c = connections()
+  const capability = 'agent-session.structured.v1'
+  let observed: readonly string[] = []
+  const send: RemoteSender = async (_connection, method, params, _timeout, _envelope, _status, _signal, capabilities) => {
+    observed = capabilities
+    const reply = await c.remote.call(method, params)
+    if (!capabilities.includes(capability)) return { result: { worktree: location.worktreeId, tabs: [] } }
+    return reply
+  }
+  // The old transport's capability list yields the exact false-closed symptom.
+  await assert.rejects(() => revealChatWithConnections(nativeTabReader({}, send, []), c.desktop, location), /Could not locate/)
+  c.calls.length = 0
+  await revealChatWithConnections(nativeTabReader({}, send, [capability]), c.desktop, location)
+  assert.deepEqual(observed, [capability])
+  assert.equal(c.calls[1].target, 'desktop')
 })

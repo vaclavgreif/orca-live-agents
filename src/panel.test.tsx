@@ -20,7 +20,7 @@ test('shows active agents across workspaces, filters done, opens a selected agen
   assert.ok(panel.find({ testId: 'working' }))
   assert.ok(panel.find({ testId: 'blocked' }))
   assert.equal(panel.find({ testId: 'done' }), null)
-  await panel.toggle({ label: 'Show done (1)' })
+  await panel.press({ text: 'Show done (1)' })
   assert.ok(panel.find({ testId: 'done' }))
   await panel.press({ testId: 'working' })
   assert.equal(opened, 'working')
