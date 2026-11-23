@@ -2,6 +2,7 @@
 
 An always-visible right-sidebar panel listing agents across Orca workspaces. Keep the project tree on the left and Live Agents on the right.
 
+- Search by project, task title, workspace, branch or agent name; filtering is instant and case-insensitive. Show done also applies to search results.
 - Compact two-line rows show a bold project name and task title, using small text close to Orca’s project sidebar.
 - Groups local and paired remote agents into Needs you, Working and optional Done.
 - Uses small colored dots: amber for working/waiting, red for blocked, green for done, and a separate blue dot for unread updates. Unread completed work remains visible even with Show done off.

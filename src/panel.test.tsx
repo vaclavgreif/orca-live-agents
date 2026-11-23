@@ -85,3 +85,32 @@ test('navigation errors are labelled separately from refresh failures', async ()
   assert.equal(panel.find({ text: 'Showing the last successful refresh.' }), null)
   assert.ok(panel.find({ testId: 'working' }))
 })
+
+
+test('search filters across agent metadata, respects Show done, and clearing restores rows', async () => {
+  const host = mockHost({ requests: { 'agents.snapshot': () => ({
+    ...data, agents: [
+      { ...data.agents[0], project: 'Acme', branch: 'feature/header' },
+      ...data.agents.slice(1)
+    ]
+  }) } })
+  panel = await mount(panelModule, { host })
+  for (const query of ['  ACME  ', 'build theme', 'redesign', 'feature/header']) {
+    await panel.type({ label: 'Search agents' }, query, { replace: true })
+    assert.ok(panel.find({ testId: 'working' }))
+    assert.equal(panel.find({ testId: 'blocked' }), null)
+  }
+  await panel.type({ label: 'Search agents' }, 'not-present', { replace: true })
+  assert.equal(panel.find({ testId: 'working' }), null)
+  assert.equal(panel.find({ type: 'EmptyState' })?.props?.title, 'No matching agents')
+  await panel.type({ label: 'Search agents' }, 'export', { replace: true })
+  assert.equal(panel.find({ testId: 'done' }), null)
+  await panel.press({ text: 'Show done (1)' })
+  assert.ok(panel.find({ testId: 'done' }))
+  await panel.type({ label: 'Search agents' }, '', { replace: true })
+  assert.ok(panel.find({ testId: 'working' }))
+  assert.ok(panel.find({ testId: 'blocked' }))
+  assert.ok(panel.find({ testId: 'done' }))
+  assert.deepEqual(panel.errors, [])
+  assert.deepEqual(panel.warnings, [])
+})

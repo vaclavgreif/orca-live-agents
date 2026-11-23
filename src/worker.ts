@@ -10,7 +10,7 @@ export default function activate(orca: OrcaWorkerApi, navigation: ChatNavigation
   orca.panels.handle('agents.snapshot', async (): Promise<Snapshot> => {
     const { workspaces, truncated } = await orca.host.call('workspace.list', { includeStatus: true })
     const agents: NavigableAgent[] = []
-    const diagnostics = [`Live Agents 0.1.7`, `Desktop workspace API: ${workspaces.length} workspaces.`]
+    const diagnostics = [`Live Agents 0.1.8`, `Desktop workspace API: ${workspaces.length} workspaces.`]
     const warnings: string[] = truncated ? ['Orca returned a partial workspace list.'] : []
     // Bound concurrency so a large workspace collection cannot flood the host.
     const localWorkspaces = workspaces.filter((workspace) => !workspace.hostId?.startsWith('runtime:'))

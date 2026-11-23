@@ -1,5 +1,5 @@
 import {
-  atom, Badge, Box, Button, Callout, Collapsible, EmptyState, IconButton, Image, List, ListItem,
+  atom, Badge, Box, Button, Callout, Collapsible, EmptyState, IconButton, Image, Input, List, ListItem,
   on, plugin, read, Row, set, Spinner, Stack, Text,
   type PanelContext
 } from 'orca'
@@ -10,6 +10,7 @@ const error = atom('')
 const errorTitle = atom('Refresh failed')
 const loading = atom(false)
 const showDone = atom('show-done', false, { persist: 'plugin' })
+const search = atom('')
 let refreshPanel = async (): Promise<void> => {}
 
 export function setup(ctx: PanelContext): () => void {
@@ -74,7 +75,12 @@ export default function Panel() {
   const failureTitle = read(errorTitle)
   const busy = read(loading)
   const doneVisible = read(showDone)
-  const agents = data?.agents ?? []
+  const query = read(search).trim().toLocaleLowerCase()
+  const allAgents = data?.agents ?? []
+  const agents = query ? allAgents.filter((agent) =>
+    [agent.project, agent.workspace, agent.title, agent.branch, agent.agent]
+      .some((value) => value?.toLocaleLowerCase().includes(query))
+  ) : allAgents
   const needsYou = agents.filter((a) => a.state === 'waiting' || a.state === 'blocked')
   const working = agents.filter((a) => a.state === 'working')
   const done = agents.filter((a) => a.state === 'done')
@@ -87,13 +93,14 @@ export default function Panel() {
         <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
       </Row>
     </Row>
+    <Input label="Search agents" labelHidden type="search" placeholder="Search agents…" value={read(search)} onChange={(value) => set(search, value)} />
     {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
     {!data && busy ? <Spinner label="Loading agents" /> : null}
     {group('Needs you', needsYou, 'warning')}
     {group('Working', working, 'accent')}
     {group('Done', visibleDone, 'neutral')}
-    {data && !needsYou.length && !working.length && !visibleDone.length ? <EmptyState icon="activity" title="No active agents" description={done.length ? 'Enable Show done to see completed agents.' : 'Agents appear here when they report a status in Orca.'} /> : null}
+    {data && !needsYou.length && !working.length && !visibleDone.length ? <EmptyState icon={query ? 'search' : 'activity'} title={query ? 'No matching agents' : 'No active agents'} description={done.length ? 'Enable Show done to see completed agents.' : query ? 'Try another search or clear the field.' : 'Agents appear here when they report a status in Orca.'} /> : null}
     {data?.diagnostics ? <Collapsible title="Connection details"><Stack gap="xs">{data.diagnostics.map((line, index) => <Text key={String(index)} size="xs" muted>{line}</Text>)}</Stack></Collapsible> : null}
   </Stack>
 }
