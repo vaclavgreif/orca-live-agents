@@ -64,7 +64,7 @@ test('unread completed work stays visible and clears after opening and refresh',
   } })
   panel = await mount(panelModule, { host })
   assert.ok(panel.find({ testId: 'done' }))
-  assert.ok(panel.find({ text: 'Unread' }))
+  assert.ok(panel.findAll({ type: 'Image' }).some((node) => node.props?.alt === 'Unread updates'))
   assert.equal(panel.find({ type: 'EmptyState' }), null)
   await panel.press({ testId: 'done' })
   assert.equal(panel.find({ testId: 'done' }), null)

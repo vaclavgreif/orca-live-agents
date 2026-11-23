@@ -4,7 +4,7 @@ An always-visible right-sidebar panel listing agents across Orca workspaces. Kee
 
 - Shows the project name prominently, with the task title and branch beneath it.
 - Groups local and paired remote agents into Needs you, Working and optional Done.
-- Marks unread workspaces with a bell and Unread badge. Unread completed work remains visible even with Show done off.
+- Uses small colored dots: amber for working/waiting, red for blocked, green for done, and a separate blue dot for unread updates. Unread completed work remains visible even with Show done off.
 - Updates on status and workspace events, reconciling every 15 seconds while visible.
 - Clicking a terminal agent focuses its pane. Native chats open their workspace through Orca’s desktop navigation API; terminal commands cannot address native chat IDs.
 - Uses Orca's native components, keyboard controls and current theme.

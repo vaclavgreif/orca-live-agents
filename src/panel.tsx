@@ -1,5 +1,5 @@
 import {
-  atom, Badge, Callout, Collapsible, EmptyState, Heading, IconButton, List, ListItem,
+  atom, Badge, Box, Callout, Collapsible, EmptyState, Heading, IconButton, Image, List, ListItem,
   on, plugin, read, RelativeTime, Row, set, Spinner, Stack, Switch, Text,
   type PanelContext
 } from 'orca'
@@ -52,11 +52,14 @@ function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'ne
   return <Stack gap="xs">
     <Row justify="between"><Text weight="semibold" size="sm">{title}</Text><Badge tone={tone}>{rows.length}</Badge></Row>
     <List label={title}>
-      {rows.map((row) => <ListItem key={row.key} icon={row.unread ? 'bell' : undefined} onPress={() => openAgent(row.key)}>
+      {rows.map((row) => <ListItem key={row.key} onPress={() => openAgent(row.key)}>
         <Stack gap="xs">
           <Row justify="between" gap="sm">
-            <Text size="md" weight="semibold">{row.project || row.workspace}</Text>
-            {row.unread ? <Badge tone="accent">Unread</Badge> : null}
+            <Row gap="sm" align="center">
+              <Box width={8} height={8} shrink={false}><Image src={`assets/dot-${row.state}.png`} alt="" size="full" /></Box>
+              <Text size="md" weight="semibold">{row.project || row.workspace}</Text>
+            </Row>
+            {row.unread ? <Box width={8} height={8} shrink={false}><Image src="assets/dot-unread.png" alt="Unread updates" size="full" /></Box> : null}
           </Row>
           <Text size="sm" muted>{row.title}</Text>
           <Row justify="between" gap="sm" wrap>
@@ -86,7 +89,7 @@ export default function Panel() {
       <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
     </Row>
     <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
-    <Text muted size="xs">Version 0.1.4</Text>
+    <Text muted size="xs">Version 0.1.5</Text>
     <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
     {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
