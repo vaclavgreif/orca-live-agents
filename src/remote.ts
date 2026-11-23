@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 export type RemoteAgent = {
   orcaSessionId: string | null
+  kind: 'chat' | 'terminal'
+  navigationWorkspaceId?: string
   worktreeId: string
   title: string | null
   workspace: string
@@ -33,7 +35,15 @@ export async function runCli(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
     // Argument arrays only: no shell and no commands supplied by an agent listing.
     execFile(cliBinary(), args, { env, timeout: 12000, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
-      if (error) { reject(new Error(`Orca CLI failed (${error.killed ? 'timeout' : error.code || 'unknown error'}).`)); return }
+      if (error) {
+        let code: string | undefined
+        try {
+          const value = JSON.parse(stdout)?.error?.code
+          if (typeof value === 'string' && /^[a-z_]{1,80}$/.test(value)) code = value
+        } catch {}
+        reject(new Error(code ? `Orca request failed (${code}).` : `Orca CLI failed (${error.killed ? 'timeout' : error.code || 'unknown error'}).`))
+        return
+      }
       try {
         const response = JSON.parse(stdout)
         if (response?.ok !== true) throw new Error('Orca CLI request failed.')
@@ -53,6 +63,7 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
     }
     // Retain metadata only; the CLI can also return reply previews, which are discarded.
     agents.push({
+      kind: item.kind === 'terminal' ? 'terminal' : 'chat',
       orcaSessionId: typeof item.orcaSessionId === 'string' ? item.orcaSessionId : null,
       worktreeId: item.worktreeId,
       title: typeof item.title === 'string' ? item.title.slice(0, 512) : null,
@@ -67,14 +78,23 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
     const statuses = await runCli(['worktree', 'ps', '--environment', environment, '--limit', '500', '--json']) as { worktrees?: unknown; truncated?: boolean }
     if (!Array.isArray(statuses?.worktrees)) throw new Error('Orca returned no workspace unread statuses.')
     const unreadByWorkspace = new Map<string, boolean>()
+    const navigationByWorkspace = new Map<string, string>()
     for (const workspace of statuses.worktrees) {
-      if (workspace && typeof workspace.worktreeId === 'string' && typeof workspace.unread === 'boolean') {
-        unreadByWorkspace.set(workspace.worktreeId, workspace.unread)
+      if (!workspace || typeof workspace.worktreeId !== 'string') continue
+      if (typeof workspace.unread === 'boolean') unreadByWorkspace.set(workspace.worktreeId, workspace.unread)
+      const instance = workspace.identity?.instanceId ?? workspace.worktreeInstanceId
+      if (typeof instance === 'string' && instance) {
+        // Orca's canonical identity is wt2:<encoded execution host>:<encoded instance>.
+        // Rebase the server's local instance onto its paired desktop host.
+        const host = `runtime:${encodeURIComponent(environment)}`
+        navigationByWorkspace.set(workspace.worktreeId, `identity:wt2:${encodeURIComponent(host)}:${encodeURIComponent(instance)}`)
       }
     }
     for (const agent of agents) {
       const unread = unreadByWorkspace.get(agent.worktreeId)
       if (unread !== undefined) agent.unread = unread
+      const navigation = navigationByWorkspace.get(agent.worktreeId)
+      if (navigation) agent.navigationWorkspaceId = navigation
     }
     if (statuses.truncated) unreadWarning = 'Some workspace unread statuses were omitted by Orca.'
   } catch { unreadWarning = 'Workspace unread status could not be read; agent status is still available.' }
@@ -82,7 +102,8 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
 }
 
 export async function focusRemoteAgent(environment: string, sessionId: string): Promise<void> {
-  await runCli(['terminal', 'switch', '--environment', environment, '--terminal', `orca_session_id:${sessionId}`, '--json'])
+  const result = await runCli(['terminal', 'switch', '--environment', environment, '--terminal', `orca_session_id:${sessionId}`, '--json']) as { focus?: { navigated?: boolean } }
+  if (result?.focus?.navigated !== true) throw new Error('Orca could not bring that terminal into view.')
 }
 
 export async function listPairedEnvironments(): Promise<{ id: string; name: string }[]> {

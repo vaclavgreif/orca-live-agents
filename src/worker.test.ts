@@ -57,7 +57,8 @@ test('includes agents on a paired runtime when desktop agents.list is empty', as
   process.env.ORCA_CLI_COMMAND = resolve('src/fixtures/fake-orca')
   const host = mockHost({ results: {
     'workspace.list': { workspaces: [{ id: 'remote-w1', kind: 'worktree', name: 'feature/cart', project: 'Example', path: '/remote/shop', branch: 'feature/cart', hostId: 'runtime:test-remote' }], truncated: false },
-    'agents.list': { agents: [] }
+    'agents.list': { agents: [] },
+    'workspace.open': { opened: true }
   } })
   const worker = await mountWorker(main, { host })
   try {
@@ -71,7 +72,7 @@ test('includes agents on a paired runtime when desktop agents.list is empty', as
     assert.deepEqual(data.warnings, [])
     assert.equal(JSON.stringify(data).includes('PRIVATE_PREVIEW'), false)
     assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
-    assert.equal(host.callsOf('workspace.open').length, 0)
+    assert.deepEqual(host.callsOf('workspace.open'), [{ workspaceId: 'remote-w1' }])
   } finally {
     await worker.deactivate()
     if (previous === undefined) delete process.env.ORCA_CLI_COMMAND
@@ -107,13 +108,17 @@ test('discovers paired hosts even when desktop workspace.list has no remote work
   process.env.LIVE_AGENTS_TEST_CLI_MODE = 'paired'
   const host = mockHost({ results: {
     'workspace.list': { workspaces: [], truncated: false },
-    'agents.list': { agents: [] }
+    'agents.list': { agents: [] },
+    'workspace.open': { opened: true }
   } })
   const worker = await mountWorker(main, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
     assert.equal(data.agents[0].title, 'Implement checkout')
+    assert.equal(data.agents[0].workspaceId, 'identity:wt2:runtime%3Atest-remote:fixture-instance')
+    assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
+    assert.deepEqual(host.callsOf('workspace.open'), [{ workspaceId: 'identity:wt2:runtime%3Atest-remote:fixture-instance' }])
     assert.deepEqual(data.warnings, [])
   } finally { await worker.deactivate() }
 })
@@ -136,7 +141,8 @@ test('unavailable unread status does not hide remote agents or invent a read sta
   process.env.LIVE_AGENTS_TEST_CLI_MODE = 'unread-offline'
   const host = mockHost({ results: {
     'workspace.list': { workspaces: [{ id: 'remote-w1', kind: 'folder', name: 'remote', path: '/remote/shop', branch: null, hostId: 'runtime:test-remote' }], truncated: false },
-    'agents.list': { agents: [] }
+    'agents.list': { agents: [] },
+    'workspace.open': { opened: true }
   } })
   const worker = await mountWorker(main, { host })
   try {
@@ -146,4 +152,25 @@ test('unavailable unread status does not hide remote agents or invent a read sta
     assert.deepEqual(data, JSON.parse(JSON.stringify(data)))
     assert.ok(data.diagnostics?.some((line) => line.includes('unread status could not be read')))
   } finally { await worker.deactivate() }
+})
+
+test('remote terminal agents still use verified terminal navigation', async () => {
+  process.env.LIVE_AGENTS_TEST_CLI_MODE = 'terminal'
+  const host = mockHost({ results: {
+    'workspace.list': { workspaces: [{ id: 'remote-w1', kind: 'folder', name: 'remote', path: '/remote/shop', branch: null, hostId: 'runtime:test-remote' }], truncated: false },
+    'agents.list': { agents: [] }
+  } })
+  const worker = await mountWorker(main, { host })
+  try {
+    const data = await worker.request('agents.snapshot')
+    assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
+    assert.equal(host.callsOf('workspace.open').length, 0)
+  } finally { await worker.deactivate() }
+})
+
+test('remote CLI reports useful error codes and refuses unverified focus', async () => {
+  const { focusRemoteAgent } = await import('./remote')
+  await assert.rejects(() => focusRemoteAgent('test-remote', 'remote-session'), /terminal_unsupported_for_agent_session/)
+  process.env.LIVE_AGENTS_TEST_CLI_MODE = 'focus-unavailable'
+  await assert.rejects(() => focusRemoteAgent('test-remote', 'terminal-session'), /could not bring that terminal into view/)
 })

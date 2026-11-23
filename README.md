@@ -6,7 +6,7 @@ An always-visible right-sidebar panel listing agents across Orca workspaces. Kee
 - Groups local and paired remote agents into Needs you, Working and optional Done.
 - Marks unread workspaces with a bell and Unread badge. Unread completed work remains visible even with Show done off.
 - Updates on status and workspace events, reconciling every 15 seconds while visible.
-- Clicking a terminal agent focuses its pane. Native chats open their workspace.
+- Clicking a terminal agent focuses its pane. Native chats open their workspace through Orca’s desktop navigation API; terminal commands cannot address native chat IDs.
 - Uses Orca's native components, keyboard controls and current theme.
 - Reports failed refreshes and partial results rather than silently hiding them.
 - Shows the installed version and expandable Connection details for troubleshooting remote discovery.
@@ -45,7 +45,7 @@ The Node worker runs under your local user account. Its declared Orca capabiliti
 - `agent:read`: list agents and receive status changes.
 - `workspace:write`: open a workspace or focus a terminal when you click a row. This is Orca's shared capability for UI navigation; the plugin does not rename, hide, or modify projects.
 
-For remote hosts the worker runs fixed `orca agent list --environment ... --json` commands with argument arrays, without a shell. The CLI may include reply previews; the plugin discards them and retains agent metadata only. Clicking a remote row runs `orca terminal switch` for that paired host. The plugin does not send prompts or start or stop agents, and stores no data outside Orca's panel preferences.
+For remote hosts the worker runs fixed `orca agent list --environment ... --json` commands with argument arrays, without a shell. The CLI may include reply previews; the plugin discards them and retains agent metadata only. Clicking a remote terminal row runs `orca terminal switch` for that paired host and verifies navigation. Clicking a native chat opens its workspace through Orca’s desktop API, using the paired host’s qualified workspace identity. When a workspace has multiple chat tabs, Orca selects its current tab. The plugin does not send prompts or start or stop agents, and stores no data outside Orca's panel preferences.
 
 ## Verify
 

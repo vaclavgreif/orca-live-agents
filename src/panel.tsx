@@ -7,6 +7,7 @@ import type { AgentRow, Snapshot } from './protocol'
 
 const snapshot = atom<Snapshot | null>(null)
 const error = atom('')
+const errorTitle = atom('Refresh failed')
 const loading = atom(false)
 const showDone = atom('show-done', false, { persist: 'plugin' })
 let refreshPanel = async (): Promise<void> => {}
@@ -25,7 +26,7 @@ export function setup(ctx: PanelContext): () => void {
           const data = await plugin.request('agents.snapshot', undefined, { signal: ctx.signal })
           if (!ctx.signal.aborted) { set(snapshot, data); set(error, '') }
         } catch (cause) {
-          if (!ctx.signal.aborted) set(error, `Could not refresh agents. ${cause instanceof Error ? cause.message : 'Try again.'}`)
+          if (!ctx.signal.aborted) { set(errorTitle, 'Refresh failed'); set(error, `Could not refresh agents. ${cause instanceof Error ? cause.message : 'Try again.'}`) }
         }
       } while (again && !ctx.signal.aborted && read(ctx.visible))
     })().finally(() => { pending = undefined; if (!ctx.signal.aborted) set(loading, false) })
@@ -43,7 +44,7 @@ export function setup(ctx: PanelContext): () => void {
 
 async function openAgent(key: string): Promise<void> {
   try { await plugin.request('agents.open', { key }); set(error, ''); await refreshPanel() }
-  catch (cause) { set(error, cause instanceof Error ? cause.message : 'Could not open the agent workspace.') }
+  catch (cause) { set(errorTitle, 'Could not open agent'); set(error, cause instanceof Error ? cause.message : 'Could not open the agent workspace.') }
 }
 
 function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'neutral') {
@@ -71,6 +72,7 @@ function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'ne
 export default function Panel() {
   const data = read(snapshot)
   const failure = read(error)
+  const failureTitle = read(errorTitle)
   const busy = read(loading)
   const doneVisible = read(showDone)
   const agents = data?.agents ?? []
@@ -84,9 +86,9 @@ export default function Panel() {
       <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
     </Row>
     <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
-    <Text muted size="xs">Version 0.1.3</Text>
+    <Text muted size="xs">Version 0.1.4</Text>
     <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
-    {failure ? <Callout tone="danger" title="Refresh failed"><Text>{failure}</Text>{data ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
+    {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
     {!data && busy ? <Spinner label="Loading agents" /> : null}
     {group('Needs you', needsYou, 'warning')}

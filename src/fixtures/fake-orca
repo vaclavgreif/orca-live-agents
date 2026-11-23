@@ -5,13 +5,17 @@ if (args.join(' ') === 'environment list --json') {
   process.exit(0)
 }
 if (process.env.LIVE_AGENTS_TEST_CLI_MODE === 'offline') process.exit(1)
-if (args.join(' ') === 'terminal switch --environment test-remote --terminal orca_session_id:remote-session --json') {
-  process.stdout.write(JSON.stringify({ok:true,result:{switched:true}}))
+if (args.join(' ') === 'terminal switch --environment test-remote --terminal orca_session_id:terminal-session --json') {
+  process.stdout.write(JSON.stringify({ok:true,result:{focus:{navigated:process.env.LIVE_AGENTS_TEST_CLI_MODE !== 'focus-unavailable'}}}))
   process.exit(0)
+}
+if (args.join(' ') === 'terminal switch --environment test-remote --terminal orca_session_id:remote-session --json') {
+  process.stdout.write(JSON.stringify({ok:false,error:{code:'terminal_unsupported_for_agent_session',message:'A chat is not a terminal.'}}))
+  process.exit(1)
 }
 if (args.join(' ') === 'worktree ps --environment test-remote --limit 500 --json') {
   if (process.env.LIVE_AGENTS_TEST_CLI_MODE === 'unread-offline') process.exit(1)
-  process.stdout.write(JSON.stringify({ok:true,result:{worktrees:[{worktreeId:'repo::/remote/shop',unread:true}],truncated:false}}))
+  process.stdout.write(JSON.stringify({ok:true,result:{worktrees:[{worktreeId:'repo::/remote/shop',worktreeInstanceId:'fixture-instance',unread:true}],truncated:false}}))
   process.exit(0)
 }
 if (args.join(' ') !== 'agent list --environment test-remote --json') {
@@ -19,7 +23,7 @@ if (args.join(' ') !== 'agent list --environment test-remote --json') {
   process.exit(1)
 }
 process.stdout.write(JSON.stringify({ok: true, result: {agents: [{
-  orcaSessionId: 'remote-session', kind: 'chat', agent: 'codex', state: 'working',
+  orcaSessionId: process.env.LIVE_AGENTS_TEST_CLI_MODE === 'terminal' ? 'terminal-session' : 'remote-session', kind: process.env.LIVE_AGENTS_TEST_CLI_MODE === 'terminal' ? 'terminal' : 'chat', agent: 'codex', state: 'working',
   worktreeId: 'repo::/remote/shop', workspace: 'feature/cart', repo: 'Example',
   hostId: 'local', lastAssistantMessage: 'PRIVATE_PREVIEW', title: 'Implement checkout', updatedAt: 100
 }], truncated: false, hostScope: {hostIds: ['local'], omittedHostIds: []}}}))

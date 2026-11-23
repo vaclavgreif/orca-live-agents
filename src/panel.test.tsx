@@ -72,3 +72,16 @@ test('unread completed work stays visible and clears after opening and refresh',
   assert.deepEqual(panel.errors, [])
   assert.deepEqual(panel.refusals, [])
 })
+
+test('navigation errors are labelled separately from refresh failures', async () => {
+  const host = mockHost({ requests: {
+    'agents.snapshot': () => data,
+    'agents.open': () => { throw hostError('action_failed', 'Workspace unavailable') }
+  } })
+  panel = await mount(panelModule, { host })
+  await panel.press({ testId: 'working' })
+  const callout = panel.find({ type: 'Callout' })
+  assert.equal(callout?.props?.title, 'Could not open agent')
+  assert.equal(panel.find({ text: 'Showing the last successful refresh.' }), null)
+  assert.ok(panel.find({ testId: 'working' }))
+})
