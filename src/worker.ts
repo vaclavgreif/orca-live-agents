@@ -1,15 +1,16 @@
 import type { OrcaWorkerApi } from 'orca/worker'
+import { desktopNavigation, type ChatNavigation } from './navigation'
 import type { AgentRow, Snapshot } from './protocol'
 import { listRemoteAgents, focusRemoteAgent, listPairedEnvironments } from './remote'
 
-type NavigableAgent = AgentRow & { remoteEnvironment?: string; remoteSessionId?: string | null; remoteKind?: 'chat' | 'terminal' }
+type NavigableAgent = AgentRow & { remoteEnvironment?: string; remoteSessionId?: string | null; remoteKind?: 'chat' | 'terminal'; remoteWorktreeId?: string }
 
-export default function activate(orca: OrcaWorkerApi): void {
+export default function activate(orca: OrcaWorkerApi, navigation: ChatNavigation = desktopNavigation): void {
   let known = new Map<string, NavigableAgent>()
   orca.panels.handle('agents.snapshot', async (): Promise<Snapshot> => {
     const { workspaces, truncated } = await orca.host.call('workspace.list', { includeStatus: true })
     const agents: NavigableAgent[] = []
-    const diagnostics = [`Live Agents 0.1.5`, `Desktop workspace API: ${workspaces.length} workspaces.`]
+    const diagnostics = [`Live Agents 0.1.6`, `Desktop workspace API: ${workspaces.length} workspaces.`]
     const warnings: string[] = truncated ? ['Orca returned a partial workspace list.'] : []
     // Bound concurrency so a large workspace collection cannot flood the host.
     const localWorkspaces = workspaces.filter((workspace) => !workspace.hostId?.startsWith('runtime:'))
@@ -74,7 +75,7 @@ export default function activate(orca: OrcaWorkerApi): void {
             const workspace = matches.length === 1 ? matches[0] : undefined
             agents.push({
               key: JSON.stringify([host, agent.orcaSessionId ?? `${agent.worktreeId}:${index}`]),
-              workspaceId: workspace?.id ?? agent.navigationWorkspaceId ?? '',
+              workspaceId: workspace?.id ?? '',
               workspace: [agent.repo, agent.workspace].filter((v, i, a) => v && a.indexOf(v) === i).join(' / '),
               project: agent.repo || agent.workspace,
               branch: agent.workspace,
@@ -86,7 +87,8 @@ export default function activate(orca: OrcaWorkerApi): void {
               terminalId: null,
               remoteEnvironment: environment,
               remoteSessionId: agent.orcaSessionId,
-              remoteKind: agent.kind
+              remoteKind: agent.kind,
+              remoteWorktreeId: agent.worktreeId
             })
           }
         } catch (error) {
@@ -104,6 +106,10 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('agents.open', async ({ key }) => {
     const row = known.get(key)
     if (!row) throw new Error('This agent is no longer listed. Refresh and try again.')
+    if (row.remoteKind === 'chat' && row.remoteEnvironment && row.remoteSessionId && row.remoteWorktreeId) {
+      await navigation.revealChat({ environment: row.remoteEnvironment, worktreeId: row.remoteWorktreeId, sessionId: row.remoteSessionId })
+      return { opened: true }
+    }
     if (row.remoteKind === 'terminal' && row.remoteEnvironment && row.remoteSessionId) {
       await focusRemoteAgent(row.remoteEnvironment, row.remoteSessionId)
       return { opened: true }

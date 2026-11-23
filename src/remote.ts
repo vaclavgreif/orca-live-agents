@@ -5,7 +5,6 @@ import { join } from 'node:path'
 export type RemoteAgent = {
   orcaSessionId: string | null
   kind: 'chat' | 'terminal'
-  navigationWorkspaceId?: string
   worktreeId: string
   title: string | null
   workspace: string
@@ -78,23 +77,14 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
     const statuses = await runCli(['worktree', 'ps', '--environment', environment, '--limit', '500', '--json']) as { worktrees?: unknown; truncated?: boolean }
     if (!Array.isArray(statuses?.worktrees)) throw new Error('Orca returned no workspace unread statuses.')
     const unreadByWorkspace = new Map<string, boolean>()
-    const navigationByWorkspace = new Map<string, string>()
     for (const workspace of statuses.worktrees) {
       if (!workspace || typeof workspace.worktreeId !== 'string') continue
       if (typeof workspace.unread === 'boolean') unreadByWorkspace.set(workspace.worktreeId, workspace.unread)
-      const instance = workspace.identity?.instanceId ?? workspace.worktreeInstanceId
-      if (typeof instance === 'string' && instance) {
-        // Orca's canonical identity is wt2:<encoded execution host>:<encoded instance>.
-        // Rebase the server's local instance onto its paired desktop host.
-        const host = `runtime:${encodeURIComponent(environment)}`
-        navigationByWorkspace.set(workspace.worktreeId, `identity:wt2:${encodeURIComponent(host)}:${encodeURIComponent(instance)}`)
-      }
+
     }
     for (const agent of agents) {
       const unread = unreadByWorkspace.get(agent.worktreeId)
       if (unread !== undefined) agent.unread = unread
-      const navigation = navigationByWorkspace.get(agent.worktreeId)
-      if (navigation) agent.navigationWorkspaceId = navigation
     }
     if (statuses.truncated) unreadWarning = 'Some workspace unread statuses were omitted by Orca.'
   } catch { unreadWarning = 'Workspace unread status could not be read; agent status is still available.' }

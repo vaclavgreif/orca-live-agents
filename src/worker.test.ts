@@ -1,9 +1,15 @@
 import { beforeEach, afterEach, assert, hostError, mockHost, mountWorker, test } from 'orca/testing'
 import * as main from './worker'
+import type { OrcaWorkerApi } from 'orca/worker'
+import type { ChatLocation } from './navigation'
+
+const revealedChats: ChatLocation[] = []
+const workerModule = { default: (orca: OrcaWorkerApi) => main.default(orca, { revealChat: async (location) => { revealedChats.push(location) } }) }
 
 let originalCli: string | undefined
 beforeEach(async () => {
   const { resolve } = await import('node:path')
+  revealedChats.length = 0
   originalCli = process.env.ORCA_CLI_COMMAND
   process.env.ORCA_CLI_COMMAND = resolve('src/fixtures/fake-orca')
 })
@@ -22,7 +28,7 @@ test('collects separate workspaces and opens the chosen terminal', async () => {
     'agents.list': { agents: [agent] },
     'terminal.focus': { focused: true }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 2)
@@ -42,7 +48,7 @@ test('reports incomplete workspace data and falls back to workspace navigation',
     'terminal.focus': () => { throw hostError('action_failed', 'Terminal closed') },
     'workspace.open': { opened: true }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.warnings.length, 1)
@@ -60,7 +66,7 @@ test('includes agents on a paired runtime when desktop agents.list is empty', as
     'agents.list': { agents: [] },
     'workspace.open': { opened: true }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
@@ -72,7 +78,8 @@ test('includes agents on a paired runtime when desktop agents.list is empty', as
     assert.deepEqual(data.warnings, [])
     assert.equal(JSON.stringify(data).includes('PRIVATE_PREVIEW'), false)
     assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
-    assert.deepEqual(host.callsOf('workspace.open'), [{ workspaceId: 'remote-w1' }])
+    assert.deepEqual(revealedChats, [{ environment: 'test-remote', worktreeId: 'repo::/remote/shop', sessionId: 'remote-session' }])
+    assert.equal(host.callsOf('workspace.open').length, 0)
   } finally {
     await worker.deactivate()
     if (previous === undefined) delete process.env.ORCA_CLI_COMMAND
@@ -89,7 +96,7 @@ test('remote connection failure preserves local agents and reports the coverage 
     'workspace.list': { workspaces: [workspaces[0], { id: 'remote-w1', kind: 'folder', name: 'remote', path: '/remote/shop', branch: null, hostId: 'runtime:test-remote' }], truncated: false },
     'agents.list': { agents: [agent] }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
@@ -111,14 +118,15 @@ test('discovers paired hosts even when desktop workspace.list has no remote work
     'agents.list': { agents: [] },
     'workspace.open': { opened: true }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
     assert.equal(data.agents[0].title, 'Implement checkout')
-    assert.equal(data.agents[0].workspaceId, 'identity:wt2:runtime%3Atest-remote:fixture-instance')
+    assert.equal(data.agents[0].workspaceId, '')
     assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
-    assert.deepEqual(host.callsOf('workspace.open'), [{ workspaceId: 'identity:wt2:runtime%3Atest-remote:fixture-instance' }])
+    assert.deepEqual(revealedChats, [{ environment: 'test-remote', worktreeId: 'repo::/remote/shop', sessionId: 'remote-session' }])
+    assert.equal(host.callsOf('workspace.open').length, 0)
     assert.deepEqual(data.warnings, [])
   } finally { await worker.deactivate() }
 })
@@ -128,7 +136,7 @@ test('requests native workspace unread status and attaches it to local agents', 
     'workspace.list': { workspaces: [{ ...workspaces[0], project: 'Example', status: { state: 'done', unread: true, terminalCount: 1, lastActivityAt: 1 } }], truncated: false },
     'agents.list': { agents: [{ ...agent, state: 'done' }] }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents[0].unread, true)
@@ -144,7 +152,7 @@ test('unavailable unread status does not hide remote agents or invent a read sta
     'agents.list': { agents: [] },
     'workspace.open': { opened: true }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents.length, 1)
@@ -160,7 +168,7 @@ test('remote terminal agents still use verified terminal navigation', async () =
     'workspace.list': { workspaces: [{ id: 'remote-w1', kind: 'folder', name: 'remote', path: '/remote/shop', branch: null, hostId: 'runtime:test-remote' }], truncated: false },
     'agents.list': { agents: [] }
   } })
-  const worker = await mountWorker(main, { host })
+  const worker = await mountWorker(workerModule, { host })
   try {
     const data = await worker.request('agents.snapshot')
     assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })

@@ -89,7 +89,7 @@ export default function Panel() {
       <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
     </Row>
     <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
-    <Text muted size="xs">Version 0.1.5</Text>
+    <Text muted size="xs">Version 0.1.6</Text>
     <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
     {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
