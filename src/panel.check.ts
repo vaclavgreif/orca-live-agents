@@ -10,5 +10,9 @@ export default defineCheck({
       { terminalId: 't3', title: 'Check product feed', agent: 'codex', state: 'done', stateStartedAt: 0 }
     ] }
   } },
+  unreadDone: { results: {
+    'workspace.list': { workspaces: [{ ...workspaces[0], status: { state: 'done', unread: true, terminalCount: 1, lastActivityAt: 1 } }], truncated: false },
+    'agents.list': { agents: [{ terminalId: 't4', title: 'Finished the product feed', agent: 'codex', state: 'done', stateStartedAt: 0 }] }
+  } },
   unavailable: { results: { 'workspace.list': () => { throw hostError('action_failed', 'Host disconnected') } } }
 })

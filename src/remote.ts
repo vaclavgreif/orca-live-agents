@@ -10,8 +10,9 @@ export type RemoteAgent = {
   repo: string | null
   agent: string | null
   state: 'working' | 'blocked' | 'waiting' | 'done'
+  unread?: boolean
 }
-export type RemoteListing = { agents: RemoteAgent[]; truncated: boolean }
+export type RemoteListing = { agents: RemoteAgent[]; truncated: boolean; unreadWarning?: string }
 
 function cliBinary(): string {
   if (process.env.ORCA_CLI_COMMAND) return process.env.ORCA_CLI_COMMAND
@@ -61,7 +62,23 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
       state: item.state
     })
   }
-  return { agents, truncated: result.truncated === true }
+  let unreadWarning: string | undefined
+  try {
+    const statuses = await runCli(['worktree', 'ps', '--environment', environment, '--limit', '500', '--json']) as { worktrees?: unknown; truncated?: boolean }
+    if (!Array.isArray(statuses?.worktrees)) throw new Error('Orca returned no workspace unread statuses.')
+    const unreadByWorkspace = new Map<string, boolean>()
+    for (const workspace of statuses.worktrees) {
+      if (workspace && typeof workspace.worktreeId === 'string' && typeof workspace.unread === 'boolean') {
+        unreadByWorkspace.set(workspace.worktreeId, workspace.unread)
+      }
+    }
+    for (const agent of agents) {
+      const unread = unreadByWorkspace.get(agent.worktreeId)
+      if (unread !== undefined) agent.unread = unread
+    }
+    if (statuses.truncated) unreadWarning = 'Some workspace unread statuses were omitted by Orca.'
+  } catch { unreadWarning = 'Workspace unread status could not be read; agent status is still available.' }
+  return { agents, truncated: result.truncated === true, ...(unreadWarning ? { unreadWarning } : {}) }
 }
 
 export async function focusRemoteAgent(environment: string, sessionId: string): Promise<void> {

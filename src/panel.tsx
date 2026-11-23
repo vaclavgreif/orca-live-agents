@@ -42,7 +42,7 @@ export function setup(ctx: PanelContext): () => void {
 }
 
 async function openAgent(key: string): Promise<void> {
-  try { await plugin.request('agents.open', { key }); set(error, '') }
+  try { await plugin.request('agents.open', { key }); set(error, ''); await refreshPanel() }
   catch (cause) { set(error, cause instanceof Error ? cause.message : 'Could not open the agent workspace.') }
 }
 
@@ -51,11 +51,18 @@ function group(title: string, rows: AgentRow[], tone: 'warning' | 'accent' | 'ne
   return <Stack gap="xs">
     <Row justify="between"><Text weight="semibold" size="sm">{title}</Text><Badge tone={tone}>{rows.length}</Badge></Row>
     <List label={title}>
-      {rows.map((row) => <ListItem key={row.key} title={row.title} description={row.workspace} onPress={() => openAgent(row.key)}>
-        <Row justify="between" gap="sm" wrap>
-          <Text muted size="xs">{row.agent}</Text>
-          <Text muted size="xs">{row.state === 'blocked' ? 'Blocked' : row.state === 'waiting' ? 'Waiting' : row.state === 'working' ? 'Working' : 'Done'}{row.since > 0 ? ' · ' : ''}{row.since > 0 ? <RelativeTime at={row.since} /> : null}</Text>
-        </Row>
+      {rows.map((row) => <ListItem key={row.key} icon={row.unread ? 'bell' : undefined} onPress={() => openAgent(row.key)}>
+        <Stack gap="xs">
+          <Row justify="between" gap="sm">
+            <Text size="md" weight="semibold">{row.project || row.workspace}</Text>
+            {row.unread ? <Badge tone="accent">Unread</Badge> : null}
+          </Row>
+          <Text size="sm" muted>{row.title}</Text>
+          <Row justify="between" gap="sm" wrap>
+            {row.branch && row.branch !== row.project ? <Text muted size="xs">{row.branch}</Text> : null}
+            <Text muted size="xs">{row.state === 'blocked' ? 'Blocked' : row.state === 'waiting' ? 'Waiting' : row.state === 'working' ? 'Working' : 'Done'}{row.since > 0 ? ' · ' : ''}{row.since > 0 ? <RelativeTime at={row.since} /> : null}</Text>
+          </Row>
+        </Stack>
       </ListItem>)}
     </List>
   </Stack>
@@ -70,21 +77,22 @@ export default function Panel() {
   const needsYou = agents.filter((a) => a.state === 'waiting' || a.state === 'blocked')
   const working = agents.filter((a) => a.state === 'working')
   const done = agents.filter((a) => a.state === 'done')
+  const visibleDone = doneVisible ? done : done.filter((a) => a.unread === true)
   return <Stack gap="md">
     <Row justify="between">
       <Heading level={2}>Live Agents</Heading>
       <IconButton icon="refresh" label="Refresh agents" tooltip="Refresh agents" variant="ghost" size="sm" disabled={busy} onPress={() => refreshPanel()} />
     </Row>
     <Text muted size="xs">All workspaces · {working.length} working · {needsYou.length} need you</Text>
-    <Text muted size="xs">Version 0.1.2</Text>
+    <Text muted size="xs">Version 0.1.3</Text>
     <Switch label={`Show done (${done.length})`} checked={doneVisible} onChange={(value) => set(showDone, value)} />
     {failure ? <Callout tone="danger" title="Refresh failed"><Text>{failure}</Text>{data ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
     {!data && busy ? <Spinner label="Loading agents" /> : null}
     {group('Needs you', needsYou, 'warning')}
     {group('Working', working, 'accent')}
-    {doneVisible ? group('Done', done, 'neutral') : null}
-    {data && !needsYou.length && !working.length && (!doneVisible || !done.length) ? <EmptyState icon="activity" title="No active agents" description={done.length ? 'Enable Show done to see completed agents.' : 'Agents appear here when they report a status in Orca.'} /> : null}
+    {group('Done', visibleDone, 'neutral')}
+    {data && !needsYou.length && !working.length && !visibleDone.length ? <EmptyState icon="activity" title="No active agents" description={done.length ? 'Enable Show done to see completed agents.' : 'Agents appear here when they report a status in Orca.'} /> : null}
     {data?.diagnostics ? <Collapsible title="Connection details"><Stack gap="xs">{data.diagnostics.map((line, index) => <Text key={String(index)} size="xs" muted>{line}</Text>)}</Stack></Collapsible> : null}
   </Stack>
 }

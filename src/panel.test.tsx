@@ -52,3 +52,23 @@ test('refresh failure keeps the last result visible and reports it', async () =>
   assert.ok(panel.find({ testId: 'working' }))
   assert.ok(panel.find({ text: 'Showing the last successful refresh.' }))
 })
+
+test('unread completed work stays visible and clears after opening and refresh', async () => {
+  let current: Snapshot = { warnings: [], agents: [{ ...data.agents[2], project: 'Store', branch: 'master', unread: true }] }
+  const host = mockHost({ requests: {
+    'agents.snapshot': () => current,
+    'agents.open': () => {
+      current = { warnings: [], agents: [{ ...current.agents[0], unread: false }] }
+      return { opened: true }
+    }
+  } })
+  panel = await mount(panelModule, { host })
+  assert.ok(panel.find({ testId: 'done' }))
+  assert.ok(panel.find({ text: 'Unread' }))
+  assert.equal(panel.find({ type: 'EmptyState' }), null)
+  await panel.press({ testId: 'done' })
+  assert.equal(panel.find({ testId: 'done' }), null)
+  assert.ok(panel.find({ type: 'EmptyState' }))
+  assert.deepEqual(panel.errors, [])
+  assert.deepEqual(panel.refusals, [])
+})

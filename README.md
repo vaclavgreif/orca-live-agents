@@ -2,7 +2,9 @@
 
 An always-visible right-sidebar panel listing agents across Orca workspaces. Keep the project tree on the left and Live Agents on the right.
 
+- Shows the project name prominently, with the task title and branch beneath it.
 - Groups local and paired remote agents into Needs you, Working and optional Done.
+- Marks unread workspaces with a bell and Unread badge. Unread completed work remains visible even with Show done off.
 - Updates on status and workspace events, reconciling every 15 seconds while visible.
 - Clicking a terminal agent focuses its pane. Native chats open their workspace.
 - Uses Orca's native components, keyboard controls and current theme.
@@ -55,3 +57,5 @@ npm run typecheck
 ```
 
 Check scenarios cover empty, busy and disconnected states. Behavior tests cover grouping, filtering, status updates, opening agents and refresh errors. Source code is TypeScript/TSX with no build step or runtime dependencies. TypeScript and Node types are development dependencies only.
+
+Unread status comes from Orca per workspace, not per conversation. All agents in the same unread workspace share its indicator. Local workspace status and remote `worktree ps` supply it; the plugin does not invent an unread state when Orca cannot supply one.

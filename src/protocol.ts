@@ -2,6 +2,9 @@ export type AgentRow = {
   key: string
   workspaceId: string
   workspace: string
+  project?: string
+  branch?: string
+  unread?: boolean
   title: string
   agent: string
   state: 'working' | 'blocked' | 'waiting' | 'done'

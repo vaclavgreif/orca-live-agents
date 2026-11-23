@@ -9,6 +9,11 @@ if (args.join(' ') === 'terminal switch --environment test-remote --terminal orc
   process.stdout.write(JSON.stringify({ok:true,result:{switched:true}}))
   process.exit(0)
 }
+if (args.join(' ') === 'worktree ps --environment test-remote --limit 500 --json') {
+  if (process.env.LIVE_AGENTS_TEST_CLI_MODE === 'unread-offline') process.exit(1)
+  process.stdout.write(JSON.stringify({ok:true,result:{worktrees:[{worktreeId:'repo::/remote/shop',unread:true}],truncated:false}}))
+  process.exit(0)
+}
 if (args.join(' ') !== 'agent list --environment test-remote --json') {
   process.stderr.write('Unexpected fixture arguments')
   process.exit(1)

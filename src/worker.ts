@@ -7,9 +7,9 @@ type NavigableAgent = AgentRow & { remoteEnvironment?: string; remoteSessionId?:
 export default function activate(orca: OrcaWorkerApi): void {
   let known = new Map<string, NavigableAgent>()
   orca.panels.handle('agents.snapshot', async (): Promise<Snapshot> => {
-    const { workspaces, truncated } = await orca.host.call('workspace.list')
+    const { workspaces, truncated } = await orca.host.call('workspace.list', { includeStatus: true })
     const agents: NavigableAgent[] = []
-    const diagnostics = [`Live Agents 0.1.2`, `Desktop workspace API: ${workspaces.length} workspaces.`]
+    const diagnostics = [`Live Agents 0.1.3`, `Desktop workspace API: ${workspaces.length} workspaces.`]
     const warnings: string[] = truncated ? ['Orca returned a partial workspace list.'] : []
     // Bound concurrency so a large workspace collection cannot flood the host.
     const localWorkspaces = workspaces.filter((workspace) => !workspace.hostId?.startsWith('runtime:'))
@@ -22,6 +22,9 @@ export default function activate(orca: OrcaWorkerApi): void {
               key: JSON.stringify([workspace.id, agent.sessionId ?? agent.terminalId ?? index]),
               workspaceId: workspace.id,
               workspace: [workspace.project, workspace.name].filter((v, i, a) => v && a.indexOf(v) === i).join(' / '),
+              project: workspace.project || workspace.name,
+              branch: workspace.name,
+              ...(typeof workspace.status?.unread === 'boolean' ? { unread: workspace.status.unread } : {}),
               title: agent.task?.title || agent.title || `${agent.agent === 'codex' ? 'Codex' : agent.agent || 'Agent'} · ${workspace.name}`,
               agent: agent.agent || 'Agent',
               state: agent.state,
@@ -62,6 +65,7 @@ export default function activate(orca: OrcaWorkerApi): void {
           const environment = host
           const result = await listRemoteAgents(environment)
           diagnostics.push(`${discovered.get(host)}: ${result.agents.length} agents returned.`)
+          if (result.unreadWarning) diagnostics.push(`${discovered.get(host)}: ${result.unreadWarning}`)
           if (result.truncated) warnings.push(`Orca returned a partial agent list for ${environment}.`)
           for (const [index, agent] of result.agents.entries()) {
             const matches = workspaces.filter((workspace) => workspace.hostId === `runtime:${encodeURIComponent(host)}` && (
@@ -72,6 +76,9 @@ export default function activate(orca: OrcaWorkerApi): void {
               key: JSON.stringify([host, agent.orcaSessionId ?? `${agent.worktreeId}:${index}`]),
               workspaceId: workspace?.id ?? '',
               workspace: [agent.repo, agent.workspace].filter((v, i, a) => v && a.indexOf(v) === i).join(' / '),
+              project: agent.repo || agent.workspace,
+              branch: agent.workspace,
+              ...(typeof agent.unread === 'boolean' ? { unread: agent.unread } : {}),
               title: agent.title || `${agent.agent || 'Agent'} · ${agent.workspace}`,
               agent: `${agent.agent || 'Agent'} · remote`,
               state: agent.state,
@@ -88,7 +95,7 @@ export default function activate(orca: OrcaWorkerApi): void {
         }
       }))
     }
-    agents.sort((a, b) => a.workspace.localeCompare(b.workspace) || a.title.localeCompare(b.title))
+    agents.sort((a, b) => Number(b.unread === true) - Number(a.unread === true) || a.workspace.localeCompare(b.workspace) || a.title.localeCompare(b.title))
     known = new Map(agents.map((agent) => [agent.key, agent]))
     diagnostics.push(`Total: ${agents.length} agents; ${hosts.length} remote hosts queried.`)
     return { agents, warnings, diagnostics }
