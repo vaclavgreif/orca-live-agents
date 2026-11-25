@@ -8,6 +8,7 @@ export type AgentRow = {
   title: string
   agent: string
   state: 'working' | 'blocked' | 'waiting' | 'done'
+  lastActivityAt?: number
   since: number
   terminalId: string | null
 }

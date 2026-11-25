@@ -75,6 +75,7 @@ test('includes agents on a paired runtime when desktop agents.list is empty', as
     assert.equal(data.agents[0].workspaceId, 'remote-w1')
     assert.equal(data.agents[0].unread, true)
     assert.equal(data.agents[0].project, 'Example')
+    assert.equal(data.agents[0].lastActivityAt, 100)
     assert.deepEqual(data.warnings, [])
     assert.equal(JSON.stringify(data).includes('PRIVATE_PREVIEW'), false)
     assert.deepEqual(await worker.request('agents.open', { key: data.agents[0].key }), { opened: true })
@@ -133,7 +134,7 @@ test('discovers paired hosts even when desktop workspace.list has no remote work
 
 test('requests native workspace unread status and attaches it to local agents', async () => {
   const host = mockHost({ results: {
-    'workspace.list': { workspaces: [{ ...workspaces[0], project: 'Example', status: { state: 'done', unread: true, terminalCount: 1, lastActivityAt: 1 } }], truncated: false },
+    'workspace.list': { workspaces: [{ ...workspaces[0], project: 'Example', status: { state: 'done', unread: true, terminalCount: 1, lastActivityAt: 500 } }], truncated: false },
     'agents.list': { agents: [{ ...agent, state: 'done' }] }
   } })
   const worker = await mountWorker(workerModule, { host })
@@ -141,6 +142,7 @@ test('requests native workspace unread status and attaches it to local agents', 
     const data = await worker.request('agents.snapshot')
     assert.equal(data.agents[0].unread, true)
     assert.equal(data.agents[0].project, 'Example')
+    assert.equal(data.agents[0].lastActivityAt, 500)
     assert.deepEqual(host.callsOf('workspace.list'), [{ includeStatus: true }])
   } finally { await worker.deactivate() }
 })

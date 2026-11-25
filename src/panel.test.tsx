@@ -114,3 +114,31 @@ test('search filters across agent metadata, respects Show done, and clearing res
   assert.deepEqual(panel.errors, [])
   assert.deepEqual(panel.warnings, [])
 })
+
+
+test('defaults to recent activity, supports saved order choices, and reorders live updates', async () => {
+  let current: Snapshot = { warnings: [], agents: [
+    { ...data.agents[0], key: 'alpha', project: 'Alpha', lastActivityAt: 100, unread: true },
+    { ...data.agents[0], key: 'zeta', project: 'Zeta', lastActivityAt: 300 },
+    { ...data.agents[0], key: 'missing', project: 'Missing', lastActivityAt: 0 }
+  ] }
+  const host = mockHost({ requests: { 'agents.snapshot': () => current } })
+  panel = await mount(panelModule, { host })
+  const keys = () => panel!.findAll({ type: 'ListItem' }).map((row) => row.key)
+  assert.deepEqual(keys(), ['zeta', 'alpha', 'missing'])
+  await panel.select({ label: 'Order agents' }, 'oldest')
+  assert.deepEqual(keys(), ['alpha', 'zeta', 'missing'])
+  await panel.select({ label: 'Order agents' }, 'project')
+  assert.deepEqual(keys(), ['alpha', 'missing', 'zeta'])
+  await panel.select({ label: 'Order agents' }, 'unread')
+  assert.deepEqual(keys(), ['alpha', 'zeta', 'missing'])
+  assert.equal(panel.persisted.plugin['sort-order'], 'unread')
+  await panel.select({ label: 'Order agents' }, 'newest')
+  current = { ...current, agents: current.agents.map((row) => row.key === 'alpha' ? { ...row, lastActivityAt: 500 } : row) }
+  await panel.emit('agent.status.changed', { workspaceId: 'w1', paneKey: 'pane', state: 'working', receivedAt: 500 })
+  assert.deepEqual(keys(), ['alpha', 'zeta', 'missing'])
+  await panel.type({ label: 'Search agents' }, 'zeta')
+  assert.deepEqual(keys(), ['zeta'])
+  assert.deepEqual(panel.errors, [])
+  assert.deepEqual(panel.warnings, [])
+})

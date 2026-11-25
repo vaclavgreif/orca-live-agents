@@ -12,6 +12,7 @@ export type RemoteAgent = {
   agent: string | null
   state: 'working' | 'blocked' | 'waiting' | 'done'
   unread?: boolean
+  lastActivityAt: number
 }
 export type RemoteListing = { agents: RemoteAgent[]; truncated: boolean; unreadWarning?: string }
 
@@ -69,7 +70,8 @@ export async function listRemoteAgents(environment: string): Promise<RemoteListi
       workspace: item.workspace.slice(0, 512),
       repo: typeof item.repo === 'string' ? item.repo.slice(0, 512) : null,
       agent: typeof item.agent === 'string' ? item.agent.slice(0, 128) : null,
-      state: item.state
+      state: item.state,
+      lastActivityAt: typeof item.updatedAt === 'number' && Number.isFinite(item.updatedAt) && item.updatedAt > 0 ? item.updatedAt : 0
     })
   }
   let unreadWarning: string | undefined

@@ -1,6 +1,6 @@
 import {
   atom, Badge, Box, Button, Callout, Collapsible, EmptyState, IconButton, Image, Input, List, ListItem,
-  on, plugin, read, Row, set, Spinner, Stack, Text,
+  on, plugin, read, Row, Select, set, Spinner, Stack, Text,
   type PanelContext
 } from 'orca'
 import type { AgentRow, Snapshot } from './protocol'
@@ -11,6 +11,7 @@ const errorTitle = atom('Refresh failed')
 const loading = atom(false)
 const showDone = atom('show-done', false, { persist: 'plugin' })
 const search = atom('')
+const sortOrder = atom('sort-order', 'newest', { persist: 'plugin' })
 let refreshPanel = async (): Promise<void> => {}
 
 export function setup(ctx: PanelContext): () => void {
@@ -77,10 +78,27 @@ export default function Panel() {
   const doneVisible = read(showDone)
   const query = read(search).trim().toLocaleLowerCase()
   const allAgents = data?.agents ?? []
-  const agents = query ? allAgents.filter((agent) =>
+  const filtered = query ? allAgents.filter((agent) =>
     [agent.project, agent.workspace, agent.title, agent.branch, agent.agent]
       .some((value) => value?.toLocaleLowerCase().includes(query))
   ) : allAgents
+  const order = read(sortOrder)
+  const nameOrder = (a: AgentRow, b: AgentRow) => (a.project || a.workspace).localeCompare(b.project || b.workspace) || a.title.localeCompare(b.title) || a.key.localeCompare(b.key)
+  const activity = (agent: AgentRow) => {
+    const value = agent.lastActivityAt ?? agent.since
+    return Number.isFinite(value) && value > 0 ? value : 0
+  }
+  const recentFirst = (a: AgentRow, b: AgentRow) => activity(b) - activity(a) || nameOrder(a, b)
+  const agents = [...filtered].sort((a, b) => {
+    if (order === 'project') return nameOrder(a, b)
+    if (order === 'unread') return Number(b.unread === true) - Number(a.unread === true) || recentFirst(a, b)
+    if (order === 'oldest') {
+      // Missing timestamps belong last in either activity direction.
+      if (!activity(a) || !activity(b)) return Number(!activity(a)) - Number(!activity(b)) || nameOrder(a, b)
+      return activity(a) - activity(b) || nameOrder(a, b)
+    }
+    return recentFirst(a, b)
+  })
   const needsYou = agents.filter((a) => a.state === 'waiting' || a.state === 'blocked')
   const working = agents.filter((a) => a.state === 'working')
   const done = agents.filter((a) => a.state === 'done')
@@ -94,6 +112,12 @@ export default function Panel() {
       </Row>
     </Row>
     <Input label="Search agents" labelHidden type="search" placeholder="Search agents…" value={read(search)} onChange={(value) => set(search, value)} />
+    <Select label="Order agents" labelHidden value={order} options={[
+      { value: 'newest', label: 'Last activity: newest first' },
+      { value: 'oldest', label: 'Last activity: oldest first' },
+      { value: 'project', label: 'Project name: A–Z' },
+      { value: 'unread', label: 'Unread first' }
+    ]} onChange={(value) => set(sortOrder, value)} />
     {failure ? <Callout tone="danger" title={failureTitle}><Text>{failure}</Text>{data && failureTitle === 'Refresh failed' ? <Text>Showing the last successful refresh.</Text> : null}</Callout> : null}
     {data?.warnings.length ? <Callout tone="warning" title="Some agents may be missing"><Text>{data.warnings.join(' ')}</Text></Callout> : null}
     {!data && busy ? <Spinner label="Loading agents" /> : null}
